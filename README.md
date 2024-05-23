@@ -217,7 +217,9 @@ if __name__ == "__main__":
 
 If we're interested in all the ways the program can reach `c`, we can draw the following graph.
 
-<PIC:simple_graph>
+![example gv](https://github.com/alanstoate/explore-with-gdb/assets/16761755/bfd1a0f5-9544-41a9-91ca-abe35d2c7a9f)
+
+
 
 Let's apply this concept to the breakpoint we just created. We can create a similar graph from the call stacks we've collected.
 
@@ -309,9 +311,9 @@ Breakpoint 1 (bridge.cc:1883) pending.
 (gdb) python b.create_and_view_graph()
 ```
 
-AAnd we're presented with a visualization of all the ways that arrow-c-bridge-test reaches our function.
+And we're presented with a visualization of all the ways that arrow-c-bridge-test reaches our function.
 
-<Picture of visualisation>
+![callstack](https://github.com/alanstoate/explore-with-gdb/assets/16761755/0a1b0e69-71fa-4761-b60f-32eca2181866)
 
 It would be a bit more handy if we could have `create_and_view_graph` called automatically when the program ends. What we need is a way to detect when the program finishes and run some code then. Everything is a nail when all you've got is a hammer, so let's create another type of breakpoint to do just that!
 
@@ -500,7 +502,11 @@ We also specify `on_row_select` to be our row selection callback. This function 
 
 Now when we click on a stack, the graph is updated with the highlighted call heirarchy.
 
-VIDEO
+
+
+https://github.com/alanstoate/explore-with-gdb/assets/16761755/e1640376-2781-4b6a-b411-7548645ba4e6
+
+
 
 Clicking on a Dictionary
 
