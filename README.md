@@ -1,15 +1,14 @@
 # Extending GDB to visualise call heirarchies
 
-When you're learning a new codebase, stepping through the tests can be a great way to find your footing. Often, the tests can show you how the API of the codebase can be used and give you a general sense of how the various modules are interact.
+When you're becoming familiar with a new codebase, stepping through the tests with a debugger can be a great way to find your footing. Often, the tests can show you how the API of the codebase can be used and give you a general sense of how the various modules interact. Find a function you're interested in, add a breakpoint, and run a test. Then, when the execution breaks, poke around the code, look at your locals, and examine the stack trace.
 
-The GNU Project Debugger, GDB, is a powerful debugger for C and C++ software (as well as many other langues).
-we can use breakpoints to step trhough the code
+Today, we're going to use GDB's Python API to extend our breakpoints further. First, we'll add breakpoints that automatically print the call stack and locals (most debuggers can already do something similar to this). Then we'll start saving and merging our call stacks to create some visualizations of our call hierarchies. Finally, we'll add a small GUI to introduce some interactivity and allow you to inspect all the different call hierarchies that hit a particular breakpoint during a test. We'll end up with something that looks like this:
 
-GDB also has a Python API that we can use to customize our breakpoints and automate our debugging, allowing us to get a view of our codebase even quicker.
+<PREVIEW.png>
 
-Additionally, since we have access to the Python ecosystem, we can easily visualize and interact with the data we gather. Let's explore creating our own custom breakpoints in GDB to visualize how the control flow of our program reaches a particular function.
+We'll using the Apache Arrow source code to test our breakpoints. Specifically breaking on this(link) function running the tests in this(link) file.
 
-## GDB refresher
+## GDB
 
 Lets recap a the basics of running GDB and using the Python API:
 
@@ -51,6 +50,9 @@ gdb <path to your binary>
 # Print information about the current local variables in scope
 (gdb) info locals
 
+# Source a python file
+(gdb) source <path to file>
+
 # Run a python command
 (gdb) python <command>
 
@@ -76,7 +78,7 @@ class BasicBreakpoint(gdb.Breakpoint):
 
 ```
 
-In this example, we inherit from gdb.Breakpoint and implement the stop method. The boolean value returned from this method tells GDB whether to break and wait for user input or to continue execution. By returning True here, we instruct GDB to stop.
+In this example, we inherit from `gdb.Breakpoint` and implement the `stop` method. The boolean value returned from this method tells GDB whether to break and wait for user input or to continue execution. The return value of `stop` is key to of a lot of the breakpoints we'll be making. It allows us to make conditional breakpoints, but since we're in python we can do a lot more complex stuff
 
 To start GDB, set a breakpoint, and run our test, follow these steps:
 
@@ -94,7 +96,7 @@ At this point, GDB should break at the specified location, behaving just as it d
 
 ### Printing the locals
 
-Now that we have our breakpoint stopping at the right place, we can do something more interesting. We can access the Python objects that represent the current locals of the function where we break. By iterating through them, we can print the values of those locals every time we hit a breakpoint.
+Now that we have our breakpoint stopping at the right place, we can do something more interesting. We can access the Python objects that represent the current locals of the function where we break. By iterating through them, we'll print the values of those locals every time we hit a breakpoint.
 
 To achieve this, let's add the necessary code to the stop function:
 
@@ -108,8 +110,6 @@ class PrintLocalsBreakpoint(gdb.Breakpoint):
             print(f"{str(symbol.name)}: {symbol.value(frame).format_string()}")
         return True
 ```
-
-This modification allows us to print the values of the local variables every time the breakpoint is hit:
 
 ```bash
 user@computer:~/arrow/cpp/build-debug/debug$ gdb arrow-c-bridge-test
@@ -219,8 +219,6 @@ If we're interested in all the ways the program can reach `c`, we can draw the f
 
 ![example gv](https://github.com/alanstoate/explore-with-gdb/assets/16761755/bfd1a0f5-9544-41a9-91ca-abe35d2c7a9f)
 
-
-
 Let's apply this concept to the breakpoint we just created. We can create a similar graph from the call stacks we've collected.
 
 ```python
@@ -298,7 +296,7 @@ class StackTraceBreakpoint(gdb.Breakpoint):
 
 ```
 
-If we run this now, the program would execute, and if we saved our breakpoint to a variable, we could use the Python interpreter to run `create_and_view_graph` and see our graph:
+If we save our breakpoint to a variable, we could use the Python interpreter to run `create_and_view_graph` and see our graph after running the program:
 
 ```bash
 (gdb) source ./view_call_graph.py
@@ -363,7 +361,7 @@ We can quickly see the names of the tests that use our function and can notice s
 
 - All of the code paths eventually lead to `ArrayImporter::Import`, which seems to be a recursive function because it has an arrow pointing to itself. However, we need to be cautious here because we removed all of the parameters from the function signature, so this might not be a recursive function at all. It could just be one function calling an overloaded function of the same name. Upon inspection of the code, we find that both of these possibilities are true.
 
-- The `ArrayImporter::DoImport` function calls `ImportDict`, which calls `ImportChild`, which then calls `DoImport` again, forming a recursive loop. Earlier, we saw some tests mentioning importing dictionaries and structs, and this could have something to do with those tests, although it's hard to tell with this image.
+- The `ArrayImporter::DoImport` function calls `ImportDict`, which calls `ImportChild`, which then calls `DoImport` again, forming a recursive loop. Earlier, we saw some tests mentioning importing dictionaries so this is the likely code path of those tests, although it's hard to tell with this image.
 
 #### Visitor Pattern
 
@@ -378,7 +376,7 @@ With just a quick look, we've been able to get a bit of understanding about how 
 
 Let's combine the `PrintLocalsBreakpoint` with the `StackTraceBreakpoint` as well as a GUI table element to create an interactive call heirarchy explorer.
 
-For each stack trace we save, we'll also save all the locals variable names and their values. Next, we'll use `PyImGui` to display these variables in a table. We'll add a callback to each row which we'll send to our graph code to re-render our call graph, but this time we'll give it the index of one of our stack traces which we'll use to highlight the call graph stack trace that we've selected.
+For each stack trace we save, we'll also save all the locals variable names and their values. Next, we'll use `dearpygui` to display these variables in a table. We'll add a callback to each row which we'll send to our graph code to re-render our call graph, but this time we'll give it the index of one of our stack traces which we'll use to highlight the call graph stack trace that we've selected.
 
 First, we'll update our `stop` and `create_and_view_graph` functions to save the locals. We'll add a `selected_stack_index` so that we can highlight a selected stack's edges in the graph.
 
@@ -502,12 +500,7 @@ We also specify `on_row_select` to be our row selection callback. This function 
 
 Now when we click on a stack, the graph is updated with the highlighted call heirarchy.
 
-
-
 https://github.com/alanstoate/explore-with-gdb/assets/16761755/e1640376-2781-4b6a-b411-7548645ba4e6
 
-
-
-Clicking on a Dictionary
-
-Looking through the locals table, the only variable of real interest is `buffer_size`. We can see that the majority of values are 0, 3, 6, 10 and 15 which map to metasyntactic test strings defined in `bridge_test.cc`.
+Which tests use ImportChild
+int vs long other tests? regex
