@@ -4,7 +4,8 @@ When you're becoming familiar with a new codebase, stepping through the tests wi
 
 Today, we're going to use GDB's Python API to extend our breakpoints further. First, we'll add breakpoints that automatically print the call stack and locals (most debuggers can already do something similar to this). Then we'll start saving and merging our call stacks to create some visualizations of our call hierarchies. Finally, we'll add a small GUI to introduce some interactivity and allow you to inspect all the different call hierarchies that hit a particular breakpoint during a test. We'll end up with something that looks like this:
 
-<PREVIEW.png>
+![preview](https://github.com/alanstoate/explore-with-gdb/assets/16761755/d60fec47-cb47-4b1e-a3d7-a04ff596fe1d)
+
 
 We'll using the Apache Arrow source code to test our breakpoints. Specifically breaking on this(link) function running the tests in this(link) file.
 
