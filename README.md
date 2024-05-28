@@ -532,7 +532,7 @@ We also specify `on_row_select` to be our row selection callback. This function 
 
 Now when we click on a stack, the graph is updated with the highlighted call hierarchy.
 
-https://github.com/alanstoate/explore-with-gdb/graph.mp4
+https://github.com/alanstoate/explore-with-gdb/blob/main/graph.mp4
 
 #### Exploring the locals
 
