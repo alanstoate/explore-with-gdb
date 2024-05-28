@@ -8,7 +8,7 @@ Today, we're going to use GDB's Python API to extend our breakpoints further. Fi
 
 ## The Code we'll be visualising
 
-We'll using the [Apache Arrow source code] (https://github.com/apache/arrow) to test our breakpoints. Specifically we'll be looking at the [`ImportStringValuesBuffer`](https://github.com/apache/arrow/blob/f904928054fad89360d83015db5c23ac1ef86d05/cpp/src/arrow/c/bridge.cc#L1878) function in `cpp/src/arrow/bridge.cc`.
+We'll using the [Apache Arrow source code](https://github.com/apache/arrow) to test our breakpoints. Specifically we'll be looking at the [`ImportStringValuesBuffer`](https://github.com/apache/arrow/blob/f904928054fad89360d83015db5c23ac1ef86d05/cpp/src/arrow/c/bridge.cc#L1878) function in `cpp/src/arrow/bridge.cc`.
 
 Looking at `bridge.h` we can see a bunch of functions that handle importing/exporting of Arrow data from the C data interface to C++ objects. Our function lives in an `ArrayImporter` type which lives in an anonymous namespace in `bridge.cc`. Back to `bridge.h` we can see two functions related to importing Arrays:
 
