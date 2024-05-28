@@ -532,7 +532,7 @@ We also specify `on_row_select` to be our row selection callback. This function 
 
 Now when we click on a stack, the graph is updated with the highlighted call hierarchy.
 
-https://github.com/alanstoate/explore-with-gdb/graph.mp4
+![video](graph.mp4)
 
 #### Exploring the locals
 
@@ -576,7 +576,7 @@ Breakpoint at bridge.cc:1883
 
 Breakpoint at bridge.cc:1880
 
-![preview](https://github.com/alanstoate/explore-with-gdb/1880.png)
+![preview](1880.png)
 
 There's only four stack traces available when the length of the data we're trying to import is greater than zero.
 
