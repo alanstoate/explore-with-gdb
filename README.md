@@ -10,19 +10,7 @@ Today, we're going to use GDB's Python API to extend our breakpoints further. Fi
 
 We'll using the [Apache Arrow source code](https://github.com/apache/arrow) to test our breakpoints. Specifically we'll be looking at the [`ImportStringValuesBuffer`](https://github.com/apache/arrow/blob/f904928054fad89360d83015db5c23ac1ef86d05/cpp/src/arrow/c/bridge.cc#L1878) function in `cpp/src/arrow/bridge.cc`.
 
-Looking at `bridge.h` we can see a bunch of functions that handle importing/exporting of Arrow data from the C data interface to C++ objects. Our function lives in an `ArrayImporter` type which lives in an anonymous namespace in `bridge.cc`. Back to `bridge.h` we can see two functions related to importing Arrays:
-
-```C++
-Result<std::shared_ptr<Array>> ImportArray(struct ArrowArray* array,
-                                           std::shared_ptr<DataType> type);
-
-Result<std::shared_ptr<Array>> ImportArray(struct ArrowArray* array,
-                                           struct ArrowSchema* type);
-```
-
-So we can make the assumption now that those functions will at some point use `ArrayImporter::ImportStringValuesBuffer` to turn C data into a C++ object.
-
-The [`arrow-c-bridge-test`](https://github.com/apache/arrow/blob/main/cpp/src/arrow/c/bridge_test.cc) calls this function a number of times, so we'll be using that test to try out our breakpoints.
+The [`arrow-c-bridge-test`](https://github.com/apache/arrow/blob/main/cpp/src/arrow/c/bridge_test.cc) calls this function a number of times, so we'll be using that test to try out our custom breakpoints.
 
 That's all we need to know for now, let's do some exploring.
 
@@ -385,7 +373,7 @@ We can quickly see the names of the tests that use our function and can notice s
 
 #### Function Calls
 
-![import](import.png)
+![import](Import.png)
 
 - All of the code paths eventually lead to `ArrayImporter::Import`, which seems to be a recursive function because it has an arrow pointing to itself. However, we need to be cautious here because we removed all of the parameters from the function signature, so this might not be a recursive function at all. It could just be one function calling an overloaded function of the same name. Upon inspection of the code, we find that both of these possibilities are true.
 
