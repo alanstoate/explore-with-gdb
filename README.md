@@ -8,7 +8,7 @@ Today, we're going to use GDB's Python API to extend our breakpoints further. Fi
 
 ## The Code we'll be visualising
 
-We'll using the Apache Arrow source code <LINK> to test our breakpoints. Specifically we'll be looking at the `ImportStringValuesBuffer` function in `cpp/src/arrow/bridge.cc`.
+We'll using the [Apache Arrow source code] (https://github.com/apache/arrow) to test our breakpoints. Specifically we'll be looking at the [`ImportStringValuesBuffer`](https://github.com/apache/arrow/blob/f904928054fad89360d83015db5c23ac1ef86d05/cpp/src/arrow/c/bridge.cc#L1878) function in `cpp/src/arrow/bridge.cc`.
 
 Looking at `bridge.h` we can see a bunch of functions that handle importing/exporting of Arrow data from the C data interface to C++ objects. Our function lives in an `ArrayImporter` type which lives in an anonymous namespace in `bridge.cc`. Back to `bridge.h` we can see two functions related to importing Arrays:
 
@@ -22,7 +22,7 @@ Result<std::shared_ptr<Array>> ImportArray(struct ArrowArray* array,
 
 So we can make the assumption now that those functions will at some point use `ArrayImporter::ImportStringValuesBuffer` to turn C data into a C++ object.
 
-The `arrow-c-bridge-test` calls this function a number of times, so we'll be using that test to try out our breakpoints.
+The [`arrow-c-bridge-test`](https://github.com/apache/arrow/blob/main/cpp/src/arrow/c/bridge_test.cc) calls this function a number of times, so we'll be using that test to try out our breakpoints.
 
 That's all we need to know for now, let's do some exploring.
 
@@ -385,7 +385,7 @@ We can quickly see the names of the tests that use our function and can notice s
 
 #### Function Calls
 
-<IMPORT PICTURE>
+![import](import.png)
 
 - All of the code paths eventually lead to `ArrayImporter::Import`, which seems to be a recursive function because it has an arrow pointing to itself. However, we need to be cautious here because we removed all of the parameters from the function signature, so this might not be a recursive function at all. It could just be one function calling an overloaded function of the same name. Upon inspection of the code, we find that both of these possibilities are true.
 
@@ -578,7 +578,7 @@ Breakpoint at bridge.cc:1880
 
 ![preview](1880.png)
 
-There's only four stack traces available when the length of the data we're trying to import is greater than zero.
+Looking at the `ArrayImport_String` test, there's only four stack traces available when the length of the data we're trying to import is greater than zero.
 
 Let's go back to our test to try and see why:
 
@@ -612,6 +612,8 @@ But there's another test that uses `FillStringViewLike` and `MakeBinaryViewArray
 #### Exploring the stacks
 
 Looking back the the `DoImport`, `ImportDict`, `ImportChild` loop, we can now click on any of the dictionary tests to confirm that they are using this loop (Makes sense that the ImportDictionary tests use the import dictionary loop). Additionally, we can see that the `Nested_DictionaryTest` is using the `ImportChild` methods as well as the loop (again, makes sense).
+
+![dictionary_loop](dictionary_loop.png)
 
 ## Finishing Thoughts
 
