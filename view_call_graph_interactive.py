@@ -22,7 +22,8 @@ def tidy(function_name):
     function_name = function_name.replace("(anonymous namespace)::", "")
     if function_name.startswith("CheckNotYetImplementedTestCase"):
         function_name = "CheckNotYetImplementedTestCase"
-    function_name = "".join(re.split("\(|\)", function_name)[::2])
+    if "ImportArray" not in function_name:
+        function_name = "".join(re.split("\(|\)", function_name)[::2])
     return function_name
 
 

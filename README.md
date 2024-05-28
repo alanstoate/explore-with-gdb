@@ -2,7 +2,7 @@
 
 When you're becoming familiar with a new codebase, stepping through the tests with a debugger can be a great way to find your footing. Often, the tests can show you how the API of the codebase can be used and give you a general sense of how the various modules interact. Find a function you're interested in, add a breakpoint, and run a test. Then, when the execution breaks, poke around the code, look at your locals, and examine the stack trace.
 
-Today, we're going to use GDB's Python API to extend our breakpoints further. First, we'll add breakpoints that automatically print the call stack and locals (most debuggers can already do something similar to this). Then, we'll start saving and merging our call stacks to create some visualizations of our call hierarchies. Finally, we'll add a small GUI to introduce some interactivity and allow us to inspect all the different call hierarchies that hit a particular breakpoint during a test. We'll end up with something that looks like this:
+Today, we're going to use GDB's Python API to extend our breakpoints further. First, we'll add breakpoints that automatically print the call stack and locals (most debuggers can already do something similar to this). Then, we'll start saving and merging our call stacks to create some visualizations of all the call hierarchies that run in a particular test. Finally, we'll add a small GUI to introduce some interactivity and allow us to inspect particular call hierarchies that hit a breakpoint during a test. We'll end up with something that looks like this:
 
 ![preview](https://github.com/alanstoate/explore-with-gdb/assets/16761755/d60fec47-cb47-4b1e-a3d7-a04ff596fe1d)
 
@@ -21,6 +21,8 @@ Result<std::shared_ptr<Array>> ImportArray(struct ArrowArray* array,
 ```
 
 So we can make the assumption now that those functions will at some point use `ArrayImporter::ImportStringValuesBuffer` to turn C data into a C++ object.
+
+The `arrow-c-bridge-test` calls this function a number of times, so we'll be using that test to try out our breakpoints.
 
 That's all we need to know for now, let's do some exploring.
 
@@ -94,12 +96,12 @@ class BasicBreakpoint(gdb.Breakpoint):
 
 ```
 
-In this example, we inherit from `gdb.Breakpoint` and implement the `stop` method. The boolean value returned from this method tells GDB whether to break and wait for user input or to continue execution. The return value of `stop` is key to of a lot of the breakpoints we'll be making. It allows us to make conditional breakpoints, but since we're in python we're also able write more complex logic and access the entire Python ecosystem.
+In this example, we inherit from `gdb.Breakpoint` and implement the `stop` method. The boolean value returned from this method tells GDB whether to break and wait for user input or to continue execution. The return value of `stop` is key to of a lot of the breakpoints we'll be making. It allows us to make conditional breakpoints, but since we're in python we're also able write more complex logic and access the entire Python ecosystem as well.
 
 Let's start GDB, set a breakpoint, and run our test:
 
 ```bash
-gdb ./test
+user@computer:~$ gdb ./test
 
 (gdb) source ./basic.py
 (gdb) pi
@@ -114,7 +116,7 @@ At this point, GDB should break at the specified location, behaving just as it d
 
 Now that we have our breakpoint stopping at the right place, we'll do something more interesting. We can access the Python objects that represent the current locals of the function where we break. By iterating through them, we'll print the values of those locals every time we hit a breakpoint.
 
-Let's add the necessary code to the stop function:
+Let's add the necessary code to the stop method:
 
 ```python
 import gdb
@@ -128,7 +130,7 @@ class PrintLocalsBreakpoint(gdb.Breakpoint):
 ```
 
 ```bash
-user@computer:~/arrow/cpp/build-debug/debug$ gdb arrow-c-bridge-test
+user@computer:~$ ~/arrow/cpp/build-debug/debug$ gdb arrow-c-bridge-test
 (gdb) source ./print_locals.py
 (gdb) python PrintLocalsBreakpoint("bridge.cc:1883")
 (gdb) run
@@ -147,9 +149,9 @@ buffer_size: 10
 
 We can use a similar method to print the stack trace of the function where we break.
 
-We'll add an extra function called `tidy(function_name)` to remove common namespaces, like `arrow::` and `std::`, shorten any overly long function names and remove the parentheses (except from our `ImportArray` functions) from the function signature to make the stack trace a little more readable.
+We'll add an extra function called `tidy(function_name)` to remove common namespaces, like `arrow::` and `std::`, shorten any overly long function names and remove the parameters from the function signature to make the stack trace a little more readable.
 
-**_NOTE:_** I've chosen the what to tidy based on running these breakpoints and choosing what I think can be left out. This will need to be adjusted for other functions/codebases
+**_NOTE:_** _I've chosen the what to tidy based on running these breakpoints and choosing what I think can be left out. This will need to be adjusted for other functions/codebases_.
 
 Here's the implementation:
 
@@ -167,8 +169,9 @@ def tidy(function_name):
     if function_name.startswith("CheckNotYetImplementedTestCase"):
         function_name = "CheckNotYetImplementedTestCase"
 
-    if "ImportArray" not in function_name:
-        function_name = "".join(re.split("\(|\)", function_name)[::2])
+    # Remove
+    function_name = "".join(re.split("\(|\)", function_name)[::2])
+
     return function_name
 
 
@@ -254,7 +257,7 @@ def tidy(function_name):
 class StackTraceBreakpoint(gdb.Breakpoint):
     def __init__(self, breakpoint_location):
         super().__init__(breakpoint_location)
-        self.name = breakpoint_location
+        self.name = "arrow-c-bridge-test-graph"
         self.function_names = set()
         self.stacks = []
 
@@ -262,24 +265,24 @@ class StackTraceBreakpoint(gdb.Breakpoint):
         frame = gdb.selected_frame()
         stack = []
         while frame:
-            tidied_function_name = frame.function().name
+            tidied_function_name = tidy(frame.function().name)
             stack.append(tidied_function_name)
             self.function_names.add(tidied_function_name)
 
-            frame = frame.older
+            frame = frame.older()
 
-        stacks.append(stack)
+        self.stacks.append(stack)
 
         return False
 ```
 
-We've added an `__init___` function which passes the `breakpoint_location` on to the parent.
+We've added an `__init___` function which passes `breakpoint_location` on to the parent.
 
 Then we set three member variables:
 
 - name: We'll use this later to name our visualization.
 - function_names: We use a set here since multiple call stacks will have repeated function names, but we only need the unique names to represent the nodes in our graph.
-- stacks: The stacks are a list of lists of function names (a list of our call stacks).
+- stacks: A list of lists of function names (a list of our call stacks).
 
 By returning `False` in `stop`, we tell GDB to not break each time the breakpoint is hit. Instead, our stop code is run and the program is continued.
 
@@ -321,6 +324,7 @@ class StackTraceBreakpoint(gdb.Breakpoint):
 If we save our breakpoint to a variable, we can use the Python interpreter to run `create_and_view_graph` and see our graph after running the program:
 
 ```bash
+user@computer:~/arrow/cpp/build-debug/debug$ gdb arrow-c-bridge-test
 (gdb) source ./view_call_graph.py
 (gdb) python b = StackTraceBreakpoint("bridge.cc:1883")
 No source file named bridge.cc.
@@ -377,9 +381,11 @@ We can quickly see the names of the tests that use our function and can notice s
 
 - All of the `TestArrayImport*` tests call `TestArrayImport::CheckImport`.
 - The `TestArrayImport_*Error` tests call a different check function in `TestArrayImport::CheckImportError`.
-- The `TestArrayRoundTrip*` functions seem to be the last types of tests shown here and largely call some kind of `TestWithJSON` function.
+- The `TestArrayRoundTrip*` functions seem to be the last types of tests shown here and don't call `CheckImport`.
 
 #### Function Calls
+
+<IMPORT PICTURE>
 
 - All of the code paths eventually lead to `ArrayImporter::Import`, which seems to be a recursive function because it has an arrow pointing to itself. However, we need to be cautious here because we removed all of the parameters from the function signature, so this might not be a recursive function at all. It could just be one function calling an overloaded function of the same name. Upon inspection of the code, we find that both of these possibilities are true.
 
@@ -389,8 +395,8 @@ We can quickly see the names of the tests that use our function and can notice s
 
 Finally, right down at the bottom, we can see that this importer employs a visitor pattern with `ArrayImporter::Visit`, which eventually calls two template instantiations of our function of interest:
 
-- ImportStringValuesBuffer<int>
-- ImportStringValuesBuffer<long>
+- `ImportStringValuesBuffer<int>`
+- `ImportStringValuesBuffer<long>`
 
 With just a quick look, we've been able to get a bit of understanding about how this function gets called from our test. I highly recommend looking at this image while finding the corresponding functions in the code. I find having two different representations of the code flow is great for forming an understanding in my head.
 
@@ -399,6 +405,8 @@ With just a quick look, we've been able to get a bit of understanding about how 
 Let's combine the `PrintLocalsBreakpoint` with the `StackTraceBreakpoint` as well as a GUI table element to create an interactive call hierarchy explorer.
 
 For each stack trace we save, we'll also save all the locals variable names and their values. Next, we'll use `dearpygui` to display these variables in a table. We'll add a callback to each row which we'll send to our graph code to re-render our call graph, but this time we'll give it the index of one of our stack traces which we'll use to highlight the call graph stack trace that we've selected.
+
+#### Update `stop` and `create_and_view_graph`
 
 First, we'll update our `stop` and `create_and_view_graph` functions to save the locals. We'll add a `selected_stack_index` so that we can highlight a selected stack's edges in the graph.
 
@@ -470,6 +478,8 @@ class StackTraceBreakpoint(gdb.Breakpoint):
 
 ```
 
+#### Add a Table
+
 We'll add a function that creates a table. Each row will display the local variable names and values. We'll also display the test name which we can identify from the previous step is always the 12th to last function in each stack.
 
 We also specify `on_row_select` to be our row selection callback. This function gets passed the row index that we've selected which we use to call `create_and_view_graph` with a highlighted stack.
@@ -522,7 +532,7 @@ We also specify `on_row_select` to be our row selection callback. This function 
 
 Now when we click on a stack, the graph is updated with the highlighted call hierarchy.
 
-https://github.com/alanstoate/explore-with-gdb/assets/16761755/e1640376-2781-4b6a-b411-7548645ba4e6
+https://github.com/alanstoate/explore-with-gdb/graph.mp4
 
 #### Exploring the locals
 
@@ -552,16 +562,21 @@ Let's put our breakpoint at the end of the if statement and rerun our test to co
 
 ```bash
 (gdb) source ./view_call_graph.py
-(gdb) python b = StackTraceBreakpoint("bridge.cc:1881")
-No source file named bridge.cc.
-Breakpoint 1 (bridge.cc:1883) pending.
+(gdb) python b = StackTraceBreakpoint("bridge.cc:1880")
+Breakpoint 1 (bridge.cc:1880) pending.
 
 #... program output
 
 (gdb) python b.create_and_view_graph()
 ```
 
-<COMPARISON>
+Breakpoint at bridge.cc:1883
+
+![preview](1883.png)
+
+Breakpoint at bridge.cc:1880
+
+![preview](https://github.com/alanstoate/explore-with-gdb/1880.png)
 
 There's only four stack traces available when the length of the data we're trying to import is greater than zero.
 
@@ -596,9 +611,7 @@ But there's another test that uses `FillStringViewLike` and `MakeBinaryViewArray
 
 #### Exploring the stacks
 
-Looking back the the `DoImport`, `ImportDict`, `ImportChild` loop, we can now click on any of the dictionary tests to confirm that they are using this loop (Makes sense that the ImportDictionary tests use the import dictionary loop). Additionally, we can confirm that the `Nested_DictionaryTest` is using the `ImportChild` methods as well as the loop (again, makes sense).
-
-<IMPORT Loop pic>
+Looking back the the `DoImport`, `ImportDict`, `ImportChild` loop, we can now click on any of the dictionary tests to confirm that they are using this loop (Makes sense that the ImportDictionary tests use the import dictionary loop). Additionally, we can see that the `Nested_DictionaryTest` is using the `ImportChild` methods as well as the loop (again, makes sense).
 
 ## Finishing Thoughts
 
@@ -606,6 +619,7 @@ We've covered a few different ways of extending breakpoints here which you can u
 
 - Make a conditional breakpoint that only saves a stack if a function exists up the call hierarchy
 - Visualize you're locals or stacks differently with images or charts
-- <another one>
 
 Everything that's been explored could have been found by reading the code or by using regular debugging to step through the code. I find, however, that building these call hierarchies helps me to quickly gain a wider understanding of the code base and that having another representation of the code path really helps (it's also fun to make some pictures every now and then).
+
+Thanks for reading!
