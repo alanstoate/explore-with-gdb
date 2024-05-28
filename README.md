@@ -373,7 +373,7 @@ We can quickly see the names of the tests that use our function and can notice s
 
 #### Function Calls
 
-![import](Import.png)
+![import](images/Import.png)
 
 - All of the code paths eventually lead to `ArrayImporter::Import`, which seems to be a recursive function because it has an arrow pointing to itself. However, we need to be cautious here because we removed all of the parameters from the function signature, so this might not be a recursive function at all. It could just be one function calling an overloaded function of the same name. Upon inspection of the code, we find that both of these possibilities are true.
 
@@ -560,11 +560,11 @@ Breakpoint 1 (bridge.cc:1880) pending.
 
 Breakpoint at bridge.cc:1883
 
-![preview](1883.png)
+![preview](images/1883.png)
 
 Breakpoint at bridge.cc:1880
 
-![preview](1880.png)
+![preview](images/1880.png)
 
 Looking at the `ArrayImport_String` test, there's only four stack traces available when the length of the data we're trying to import is greater than zero.
 
@@ -601,7 +601,7 @@ But there's another test that uses `FillStringViewLike` and `MakeBinaryViewArray
 
 Looking back the the `DoImport`, `ImportDict`, `ImportChild` loop, we can now click on any of the dictionary tests to confirm that they are using this loop (Makes sense that the ImportDictionary tests use the import dictionary loop). Additionally, we can see that the `Nested_DictionaryTest` is using the `ImportChild` methods as well as the loop (again, makes sense).
 
-![dictionary_loop](dictionary_loop.png)
+![dictionary_loop](images/dictionary_loop.png)
 
 ## Finishing Thoughts
 
