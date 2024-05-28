@@ -89,7 +89,7 @@ In this example, we inherit from `gdb.Breakpoint` and implement the `stop` metho
 Let's start GDB, set a breakpoint, and run our test:
 
 ```bash
-user@computer:~$ gdb ./test
+user@computer:~$ ~/arrow/cpp/build-debug/debug$ gdb arrow-c-bridge-test
 
 (gdb) source ./basic.py
 (gdb) pi
@@ -149,15 +149,18 @@ import gdb
 
 
 def tidy(function_name):
+    # Remove namespaces
     function_name = str(function_name)
     function_name = function_name.replace("arrow::", "")
     function_name = function_name.replace("engine::", "")
     function_name = function_name.replace("std::", "")
     function_name = function_name.replace("(anonymous namespace)::", "")
+
+    # Shorten long function
     if function_name.startswith("CheckNotYetImplementedTestCase"):
         function_name = "CheckNotYetImplementedTestCase"
 
-    # Remove
+    # Remove parameters
     function_name = "".join(re.split("\(|\)", function_name)[::2])
 
     return function_name
@@ -179,7 +182,7 @@ Now, when we hit our breakpoint, the call stack is printed with the function nam
 
 ```bash
 user@computer:~/arrow/cpp/build-debug/debug$ gdb arrow-c-bridge-test
-(gdb) source ./print_locals.py
+(gdb) source ./print_stack.py
 (gdb) python StackTraceBreakpoint("bridge.cc:1883")
 (gdb) run
 
@@ -208,7 +211,7 @@ main
 
 ```
 
-### Visualising the call stack
+### Visualizing the call stack
 
 When we run a test, we generate a number of call stacks representing all the different ways the code path reaches our function for that test. Take the simple program below:
 
@@ -377,7 +380,7 @@ We can quickly see the names of the tests that use our function and can notice s
 
 - All of the code paths eventually lead to `ArrayImporter::Import`, which seems to be a recursive function because it has an arrow pointing to itself. However, we need to be cautious here because we removed all of the parameters from the function signature, so this might not be a recursive function at all. It could just be one function calling an overloaded function of the same name. Upon inspection of the code, we find that both of these possibilities are true.
 
-- The `ArrayImporter::DoImport` function calls `ImportDict`, which calls `ImportChild`, which then calls `DoImport` again, forming a recursive loop. Earlier, we saw some tests mentioning importing dictionaries so this is the likely code path of those tests, although it's hard to tell with this image.
+- The `ArrayImporter::DoImport` function calls `ImportDict`, which calls `ImportChild`, which then calls `DoImport` again, forming a recursive loop. Earlier, we saw some tests mentioning importing dictionaries so this is the likely code path of those tests, although it's hard to tell which tests call specific functions with this image (we'll handle that in the next step).
 
 #### Visitor Pattern
 
@@ -468,7 +471,7 @@ class StackTraceBreakpoint(gdb.Breakpoint):
 
 #### Add a Table
 
-We'll add a function that creates a table. Each row will display the local variable names and values. We'll also display the test name which we can identify from the previous step is always the 12th to last function in each stack.
+We'll add a function that creates a table. Each row will display the local variable names and values. We'll also display the test name which we can identify from the previous graph we generated is always the 12th to last function in each stack.
 
 We also specify `on_row_select` to be our row selection callback. This function gets passed the row index that we've selected which we use to call `create_and_view_graph` with a highlighted stack.
 
@@ -520,7 +523,7 @@ We also specify `on_row_select` to be our row selection callback. This function 
 
 Now when we click on a stack, the graph is updated with the highlighted call hierarchy.
 
-https://github.com/alanstoate/explore-with-gdb/assets/16761755/b24c0400-9bf0-46b3-bbe6-350bf8cb4f87
+https://streamable.com/gwc78m
 
 #### Exploring the locals
 
